@@ -58,7 +58,9 @@ export interface DifflTwProps {
 const defaultStyles = {
     emptyGutter: '',
     diffAdded: 'bg-green-200',
+    wordAdded: 'bg-green-300',
     diffRemoved: 'bg-red-200',
+    wordRemoved: 'bg-red-300',
     highlightedGutter: '',
     lineNumber: 'w-4 text-right',
     marker: 'w-4 text-center',
