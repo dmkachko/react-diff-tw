@@ -1,6 +1,8 @@
 import {cn} from '../utils/utils.ts';
-import {computeLineInformation, DiffInformation, DiffMethod, DiffType, LineInformation,} from './compute-lines';
+import {computeLineInformation, DiffMethod, DiffType, DiffViewCell, DiffViewLine,} from './compute-lines';
 import {useMemo, useState} from "react";
+import {mapValues} from "lodash";
+import React from 'react';
 
 export enum LineNumberPrefix {
     LEFT = 'L',
@@ -64,7 +66,19 @@ const defaultStyles = {
     highlightedGutter: '',
     lineNumber: 'w-4 text-right',
     marker: 'w-4 text-center',
-    gutter: 'w-12 text-gray-400'
+    gutter: 'w-12 text-gray-400',
+    wordDiff: '',
+    emptyLine: '',
+    highlightedLine: '',
+    content: '',
+    contentText: '',
+    line: '',
+    splitView: '',
+    titleBlock: '',
+    codeFold: 'text-xs font-bold italic underline sans-serif cursor-pointer bg-gray-100 text-gray-600',
+    codeFoldGutter: 'bg-gray-100',
+    codeFoldContent: '',
+    
 }
 
 const defaultProps: DifflTwProps = {
@@ -86,7 +100,9 @@ const defaultProps: DifflTwProps = {
 export const DifflTw: React.FC<DifflTwProps> = (props) => {
 
     const _props = useMemo(() => ({...defaultProps, ...props}), [props]);
-    _props.styles = useMemo(() => ({...defaultStyles, ..._props.styles}), [_props.styles]);
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    const styles = useMemo(() => mapValues({...defaultStyles, ...props.styles}, (v, k) => cn(v, defaultStyles[k] || '' as string, props.styles[k])), [props.styles]);
 
     const [expandedBlocks, setExpandedBlocks] = useState<number[]>([]);
     // const resetCodeBlocks = () => setExpandedBlocks(b => b.length > 0 ? [] : b);
@@ -96,7 +112,7 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
     };
 
     const renderWordDiff = ( // todo factor out
-        diffArray: DiffInformation[],
+        diffArray: DiffViewCell[],
         renderer?: (chunk: string) => JSX.Element,
     ): JSX.Element[] => {
         return diffArray.map(
@@ -104,9 +120,9 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
                 return (
                     <span
                         key={i}
-                        className={cn(_props.styles.wordDiff, {
-                            [_props.styles.wordAdded]: wordDiff.type === DiffType.ADDED,
-                            [_props.styles.wordRemoved]: wordDiff.type === DiffType.REMOVED,
+                        className={cn(styles.wordDiff, {
+                            [styles.wordAdded]: wordDiff.type === DiffType.ADDED,
+                            [styles.wordRemoved]: wordDiff.type === DiffType.REMOVED,
                         })}>
                         {renderer ? renderer(wordDiff.value as string) : wordDiff.value as string}
                 </span>
@@ -119,7 +135,7 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
         lineNumber: number,
         type: DiffType,
         prefix: LineNumberPrefix,
-        value: string | DiffInformation[],
+        value: string | DiffViewCell[],
         additionalLineNumber?: number,
         additionalPrefix?: LineNumberPrefix,
     ): JSX.Element => {
@@ -147,14 +163,14 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
                         }
                             // lineNumber && this.onLineNumberClickProxy(lineNumberTemplate) todo fix
                         }
-                        className={cn(_props.styles.gutter, {
-                            [_props.styles.emptyGutter]: !lineNumber,
-                            [_props.styles.diffAdded]: added,
-                            [_props.styles.diffRemoved]: removed,
-                            [_props.styles.highlightedGutter]: highlightLine,
+                        className={cn(styles.gutter, {
+                            [styles.emptyGutter]: !lineNumber,
+                            [styles.diffAdded]: added,
+                            [styles.diffRemoved]: removed,
+                            [styles.highlightedGutter]: highlightLine,
                         })}>
-                        <pre className={_props.styles.lineNumber}>
-                            {lineNumber}</pre>
+                        <pre className={styles.lineNumber}>
+                            {lineNumber || ''}</pre>
                     </td>
                 )}
                 {!_props.splitView && !_props.hideLineNumbers && (
@@ -163,21 +179,21 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
                         //     additionalLineNumber &&
                         //     // onLineNumberClickProxy(additionalLineNumberTemplate) todo fix
                         // }
-                        className={cn(_props.styles.gutter, {
-                            [_props.styles.emptyGutter]: !additionalLineNumber,
-                            [_props.styles.diffAdded]: added,
-                            [_props.styles.diffRemoved]: removed,
-                            [_props.styles.highlightedGutter]: highlightLine,
+                        className={cn(styles.gutter, {
+                            [styles.emptyGutter]: !additionalLineNumber,
+                            [styles.diffAdded]: added,
+                            [styles.diffRemoved]: removed,
+                            [styles.highlightedGutter]: highlightLine,
                         })}>
-                        <pre className={_props.styles.lineNumber}>{additionalLineNumber}</pre>
+                        <pre className={styles.lineNumber}>{additionalLineNumber}</pre>
                     </td>
                 )}
                 <td
-                    className={cn(_props.styles.marker, {
-                        [_props.styles.emptyLine]: !content,
-                        [_props.styles.diffAdded]: added,
-                        [_props.styles.diffRemoved]: removed,
-                        [_props.styles.highlightedLine]: highlightLine,
+                    className={cn(styles.marker, {
+                        [styles.emptyLine]: !content,
+                        [styles.diffAdded]: added,
+                        [styles.diffRemoved]: removed,
+                        [styles.highlightedLine]: highlightLine,
                     })}>
         <pre>
             {added && '+'}
@@ -185,24 +201,24 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
         </pre>
                 </td>
                 <td
-                    className={cn(_props.styles.content, {
-                        [_props.styles.emptyLine]: !content,
-                        [_props.styles.diffAdded]: added,
-                        [_props.styles.diffRemoved]: removed,
-                        [_props.styles.highlightedLine]: highlightLine,
+                    className={cn(styles.content, {
+                        [styles.emptyLine]: !content,
+                        [styles.diffAdded]: added,
+                        [styles.diffRemoved]: removed,
+                        [styles.highlightedLine]: highlightLine,
                     })}>
-                    <pre className={_props.styles.contentText}>{content}</pre>
+                    <pre className={styles.contentText}>{content}</pre>
                 </td>
             </>
         );
     };
 
     const renderSplitView = (
-        {left, right}: LineInformation,
+        {left, right}: DiffViewLine,
         index: number,
     ): JSX.Element => {
         return (
-            <tr key={index} className={_props.styles.line}>
+            <tr key={index} className={styles.line}>
                 {!!left && renderLine(
                     left.lineNumber || 0,
                     left.type!,
@@ -219,9 +235,6 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
         );
     };
 
-    // const onBlockClickProxy = (id: number): any => (): void =>
-    //     onBlockExpand(id); // todo fix
-
     const renderSkippedLineIndicator = (
         num: number,
         blockNumber: number,
@@ -236,12 +249,11 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
                 rightBlockLineNumber,
             )
         ) : (
-            <pre className={_props.styles.codeFoldContent}>Expand {num} lines ...</pre>
+            <pre className={styles.codeFoldContent}>Expand {num} lines ...</pre>
         );
         const content = (
             <td>
-                <a onClick={() => {/*props.onBlockClickProxy(blockNumber) todo*/
-                }} tabIndex={0}>
+                <a onClick={() => onBlockExpand(blockNumber)} tabIndex={0}>
                     {message}
                 </a>
             </td>
@@ -250,11 +262,11 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
         return (
             <tr
                 key={`${leftBlockLineNumber}-${rightBlockLineNumber}`}
-                className={_props.styles.codeFold}>
-                {!hideLineNumbers && <td className={_props.styles.codeFoldGutter}/>}
+                className={styles.codeFold}>
+                {!hideLineNumbers && <td className={styles.codeFoldGutter}/>}
                 <td
                     className={cn({
-                        [_props.styles.codeFoldGutter]: isUnifiedViewWithoutLineNumbers,
+                        [styles.codeFoldGutter]: isUnifiedViewWithoutLineNumbers,
                     })}
                 />
 
@@ -282,14 +294,13 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
         const {
             oldValue,
             newValue,
-            splitView,
             disableWordDiff,
             compareMethod,
             linesOffset,
             extraLinesSurroundingDiff
         } = _props;
 
-        const {lineInformation, diffLines} = computeLineInformation(
+        const {lineViews, lineNumbers} = computeLineInformation(
             oldValue,
             newValue,
             disableWordDiff,
@@ -304,14 +315,14 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
 
         let skippedLines: number[] = [];
 
-        return lineInformation.map(
-            (line: LineInformation, i: number): JSX.Element | null => {
-                const diffBlockStart = diffLines[0];
+        return lineViews.map(
+            (line: DiffViewLine, i: number): JSX.Element | null => {
+                const diffBlockStart = lineNumbers[0];
                 const currentPosition = diffBlockStart - i;
                 if (_props.showDiffOnly) {
                     if (currentPosition === -extraLines) {
                         skippedLines = [];
-                        diffLines.shift();
+                        lineNumbers.shift();
                     }
                     if (
                         line.left!.type === DiffType.DEFAULT &&
@@ -320,7 +331,7 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
                         !expandedBlocks.includes(diffBlockStart)
                     ) {
                         skippedLines.push(i + 1);
-                        if (i === lineInformation.length - 1 && skippedLines.length > 1) {
+                        if (i === lineViews.length - 1 && skippedLines.length > 1) {
                             return renderSkippedLineIndicator(
                                 skippedLines.length,
                                 diffBlockStart,
@@ -334,15 +345,11 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
 
                 const diffNodes = renderSplitView(line, i)
 
-                // splitView
-                //     ? renderSplitView(line, i)
-                //     : renderInlineView(line, i);
-
                 if (currentPosition === extraLines && skippedLines.length > 0) {
                     const {length} = skippedLines;
                     skippedLines = [];
                     return (
-                        <div key={i}>
+                        <React.Fragment key={i}>
                             {renderSkippedLineIndicator(
                                 length,
                                 diffBlockStart,
@@ -350,7 +357,7 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
                                 line.right!.lineNumber || 0,
                             )}
                             {diffNodes}
-                        </div>
+                        </React.Fragment>
                     );
                 }
                 return diffNodes;
@@ -359,8 +366,6 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
     };
 
     const {
-        oldValue,
-        newValue,
         leftTitle,
         rightTitle,
         splitView,
@@ -375,26 +380,20 @@ export const DifflTw: React.FC<DifflTwProps> = (props) => {
         <tr>
             <td
                 colSpan={splitView ? colSpanOnSplitView : colSpanOnInlineView}
-                className={_props.styles.titleBlock}>
-                <pre className={_props.styles.contentText}>{leftTitle}</pre>
+                className={styles.titleBlock}>
+                <pre className={styles.contentText}>{leftTitle}</pre>
             </td>
             {splitView && (
-                <td colSpan={colSpanOnSplitView} className={_props.styles.titleBlock}>
-                    <pre className={_props.styles.contentText}>{rightTitle}</pre>
+                <td colSpan={colSpanOnSplitView} className={styles.titleBlock}>
+                    <pre className={styles.contentText}>{rightTitle}</pre>
                 </td>
             )}
         </tr>
     );
 
     return (
-        <table
-            className={cn('w-full', _props.className, {
-                [_props.styles.splitView]: splitView
-            })}>
-            <tbody>
-            {title}
-            {nodes}
-            </tbody>
+        <table className={cn('w-full', _props.className, {[styles.splitView]: splitView})}>
+            <tbody>{title}{nodes}</tbody>
         </table>
 
     );

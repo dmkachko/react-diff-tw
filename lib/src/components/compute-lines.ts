@@ -1,6 +1,5 @@
 import * as diff from 'diff';
-
-const jsDiff: { [key: string]: any } = diff;
+import {Change} from "diff";
 
 export enum DiffType {
     DEFAULT = 0,
@@ -19,34 +18,34 @@ export enum DiffMethod {
     CSS = 'diffCss',
 }
 
-export interface DiffInformation {
-    value?: string | DiffInformation[];
+export interface DiffViewCell  {
+    value: string | DiffViewCell[];
+    type: DiffType;
     lineNumber?: number;
-    type?: DiffType;
 }
 
-export interface LineInformation {
-    left?: DiffInformation;
-    right?: DiffInformation;
+export interface DiffViewLine {
+    left: DiffViewCell;
+    right: DiffViewCell;
 }
 
 export interface ComputedLineInformation {
-    lineInformation: LineInformation[];
-    diffLines: number[];
+    lineViews: DiffViewLine[];
+    lineNumbers: number[];
 }
 
 export interface ComputedDiffInformation {
-    left?: DiffInformation[];
-    right?: DiffInformation[];
+    leftCell: DiffViewCell[];
+    rightCell: DiffViewCell[];
 }
 
 // See https://github.com/kpdecker/jsdiff/tree/v4.0.1#change-objects for more info on JsDiff
 // Change Objects
-export interface JsDiffChangeObject {
-    added?: boolean;
-    removed?: boolean;
-    value?: string;
-}
+// export interface JsDiffChangeObject {
+//     added?: boolean;
+//     removed?: boolean;
+//     value?: string;
+// }
 
 /**
  * Splits diff text by new line and computes final list of diff lines based on
@@ -90,60 +89,40 @@ const constructLines = (value: string): string[] => {
 const computeDiff = (
     oldValue: string,
     newValue: string,
-    compareMethod: string = DiffMethod.CHARS,
+    compareMethod: DiffMethod = DiffMethod.CHARS,
 ): ComputedDiffInformation => {
-    const diffArray: JsDiffChangeObject[] = jsDiff[compareMethod](
+    const diffArray: Change[] = diff[compareMethod](
         oldValue,
         newValue,
     );
+    
     const computedDiff: ComputedDiffInformation = {
-        left: [],
-        right: [],
+        leftCell: [],
+        rightCell: [],
     };
+    
     diffArray.forEach(
-        ({ added, removed, value }): DiffInformation => {
-            const diffInformation: DiffInformation = {};
+        ({ added, removed, value }) => {
             if (added) {
-                diffInformation.type = DiffType.ADDED;
-                diffInformation.value = value;
-                computedDiff.right?.push(diffInformation);
+                computedDiff.rightCell.push({type: DiffType.ADDED, value});
             }
             if (removed) {
-                diffInformation.type = DiffType.REMOVED;
-                diffInformation.value = value;
-                computedDiff.left?.push(diffInformation);
+                computedDiff.leftCell.push({type: DiffType.REMOVED, value});
             }
             if (!removed && !added) {
-                diffInformation.type = DiffType.DEFAULT;
-                diffInformation.value = value;
-                computedDiff.right?.push(diffInformation);
-                computedDiff.left?.push(diffInformation);
+                computedDiff.rightCell.push({type: DiffType.DEFAULT, value});
+                computedDiff.leftCell.push({type: DiffType.DEFAULT, value});
             }
-            return diffInformation;
         },
     );
     return computedDiff;
 };
 
-/**
- * [TODO]: Think about moving common left and right value assignment to a
- * common place. Better readability?
- *
- * Computes line wise information based in the js diff information passed. Each
- * line contains information about left and right section. Left side denotes
- * deletion and right side denotes addition.
- *
- * @param oldString Old string to compare.
- * @param newString New string to compare with old string.
- * @param disableWordDiff Flag to enable/disable word diff.
- * @param compareMethod JsDiff text diff method from https://github.com/kpdecker/jsdiff/tree/v4.0.1#api
- * @param linesOffset line number to start counting from
- */
 const computeLineInformation = (
     oldString: string,
     newString: string,
     disableWordDiff: boolean = false,
-    compareMethod: string = DiffMethod.CHARS,
+    compareMethod: DiffMethod = DiffMethod.CHARS,
     linesOffset: number = 0,
 ): ComputedLineInformation => {
     const diffArray = diff.diffLines(
@@ -157,24 +136,24 @@ const computeLineInformation = (
     );
     let rightLineNumber = linesOffset;
     let leftLineNumber = linesOffset;
-    let lineInformation: LineInformation[] = [];
+    let lineInformation: DiffViewLine[] = [];
     let counter = 0;
     const diffLines: number[] = [];
     const ignoreDiffIndexes: string[] = [];
+    
     const getLineInformation = (
         value: string,
         diffIndex: number,
         added?: boolean,
         removed?: boolean,
         evaluateOnlyFirstLine?: boolean,
-    ): (LineInformation | undefined)[] => {
+    ): DiffViewLine[] => {
         const lines = constructLines(value);
-
         return lines
             .map(
-                (line: string, lineIndex): LineInformation | undefined => {
-                    const left: DiffInformation = {};
-                    const right: DiffInformation = {};
+                (line: string, lineIndex): DiffViewLine | undefined => {
+                    const left: Partial<DiffViewCell> = {};
+                    const right: Partial<DiffViewCell> = {};
                     if (
                         ignoreDiffIndexes.includes(`${diffIndex}-${lineIndex}`) ||
                         (evaluateOnlyFirstLine && lineIndex !== 0)
@@ -197,18 +176,19 @@ const computeLineInformation = (
                             const nextDiff = diffArray[diffIndex + 1];
                             if (nextDiff && nextDiff.added) {
                                 const nextDiffLines = constructLines(nextDiff.value)[lineIndex];
-                                if (nextDiffLines) {
+                                const lineInfo = getLineInformation(
+                                    nextDiff.value,
+                                    diffIndex,
+                                    true,
+                                    false,
+                                    true,
+                                )?.[0];
+                                if (nextDiffLines && lineInfo?.right) {
                                     const {
                                         value: rightValue,
                                         lineNumber,
                                         type,
-                                    } = getLineInformation(
-                                        nextDiff.value,
-                                        diffIndex,
-                                        true,
-                                        false,
-                                        true,
-                                    )?.[0]?.right!;
+                                    } = lineInfo.right;
                                     // When identified as modification, push the next diff to ignore
                                     // list as the next value will be added in this line computation as
                                     // right and left values.
@@ -225,8 +205,8 @@ const computeLineInformation = (
                                             rightValue as string,
                                             compareMethod,
                                         );
-                                        right.value = computedDiff.right;
-                                        left.value = computedDiff.left;
+                                        right.value = computedDiff.rightCell;
+                                        left.value = computedDiff.leftCell;
                                     }
                                 }
                             }
@@ -247,24 +227,23 @@ const computeLineInformation = (
                         right.type = DiffType.DEFAULT;
                         right.value = line;
                     }
-
                     counter += 1;
-                    return { right, left };
+                    return { right: right as DiffViewCell, left: left as DiffViewCell};
                 },
             )
-            .filter(Boolean);
+            .filter(v => !!v);
     };
 
     diffArray.forEach(({ added, removed, value }: diff.Change, index: number): void => {
         lineInformation = [
-            ...lineInformation!,
-            ...getLineInformation(value, index, added, removed)!,
+            ...lineInformation || {},
+            ...getLineInformation(value, index, added, removed) || {},
         ];
     });
 
     return {
-        lineInformation,
-        diffLines,
+        lineViews: lineInformation,
+        lineNumbers: diffLines,
     };
 };
 
